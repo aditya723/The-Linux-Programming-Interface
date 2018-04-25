@@ -1,1 +1,90 @@
 
+Process Priorities (Nice Values)
+----------------------------------
+
+default model for scheduling processes for use of the CPU is round-robin time-sharing. Each process in
+turn receives use of the CPU until its time slice runs out or it voluntarily gives up the CPU.
+
+Round-robin time-sharing satisfies two important require- ments of an interactive multitasking system:
+Fairness: Each process gets a share of the CPU.
+Responsiveness: A process doesn’t need to wait for long periods before it receives use of the CPU.
+
+the nice value, allows a process to indirectly influence the kernel’s scheduling algorithm. Each process
+has a nice value in the range –20 (high priority) to +19 (low priority); the default is 0.
+
+only privileged processes can assign themselves (or other processes) a negative (high) priority.
+Unprivileged processes can only lower their priority, by assuming a nice value greater than the default of 0.
+
+Processes are not scheduled in a strict hierarchy by nice value; rather, the nice value acts as weighting factor
+that causes the kernel scheduler to favor processes with higher priorities.
+
+int getpriority(int which, id_t who);
+int setpriority(int which, id_t who, int prio);
+
+ Since getpriority() may legitimately return a value of –1 on a successful call, we must test for an error by
+ setting errno to 0 prior to the call, and then checking for a –1 return status and a nonzero errno value after the call.
+ 
+ A privileged (CAP_SYS_NICE) process can change the priority of any process.
+ Linux provides the RLIMIT_NICE resource limit, which permits unprivileged processes to increase nice values.
+ 
+ An unprivileged process can make a setpriority() call to change the nice value of another (target) process, if the effective
+ user ID of the process calling setpriority() matches the real or effective user ID of the target process, and the change to
+ the nice value is consistent with the target process’s RLIMIT_NICE limit.
+ 
+ Overview of Realtime Process Scheduling
+ ------------------------------------------
+ 
+ A realtime application must provide a guaranteed maximum response time for external inputs. In many cases, these guaranteed
+ maximum response times must be quite small (e.g.,of the order of a fraction of a second). For example, a slow response by a
+ vehicle navigation system could be catastrophic.
+A time-critical application may need to take other steps to avoid unacceptable delays. For example, to avoid being delayed by
+a page fault, an application can lock all of its virtual memory into RAM using mlock() or mlockall().
+
+A high-priority process should be able to maintain exclusive access to the CPU until it completes or voluntarily relinquishes
+the CPU.
+
+A realtime application should be able to control the precise order in which its component processes are scheduled.
+
+SUSv3 requires that an implementation provide at least 32 discrete priorities for the real- time policies. In each scheduling
+policy,runnable processes with higher priority always have precedence over lower-priority processes when seeking access to
+the CPU.
+
+Linux provides 99 realtime priority levels, numbered 1 (lowest) to 99 (highest), and this range applies in both realtime
+scheduling policies.
+
+each priority level maintains a queue of runnable processes, and the next process to run is selected from the front of the
+highest-priority non- empty queue.
+
+The SCHED_RR Policy(round robin policy)
+----------------------------------------
+Once scheduled, a process employing the SCHED_RR policy maintains control of the CPU until either:
+it reaches the end of its time slice;
+it voluntarily relinquishes the CPU, either by performing a blocking system call or by calling the sched_yield() system call.
+it terminates; or it is preempted by a higher-priority process.
+
+when the higher-priority process has ceased execution, the pre- empted process continues execution, consuming the remainder of
+its time slice.i.e., the preempted process remains at the head of the queue for its priority level.
+
+The SCHED_FIFO Policy(first-in, first-out)
+--------------------------------------------
+Once a SCHED_FIFO process gains access to the CPU, it executes until either:
+it voluntarily relinquishes the CPU
+it terminates; or it is preempted by a higher-priority process
+
+In the first case, the process is placed at the back of the queue for its priority level. In the last case, when the
+higher-priority process has ceased execution (by blocking or terminating),the preempted process continues execution (i.e.,
+the preempted process remains at the head of the queue for its priority level).
+
+The SCHED_BATCH and SCHED_IDLE Policies, SCHED_OTHER policy
+
+Realtime Process Scheduling API
+--------------------------------
+int sched_get_priority_min(int policy);
+int sched_get_priority_max(int policy);
+On Linux, these system calls return the numbers 1 and 99, respectively, for both the SCHED_RR and SCHED_FIFO policies. 
+
+
+
+
+
+
