@@ -1,0 +1,17 @@
+A daemon is a process with the following characteristics:
+-􏰀 It is long-lived. Often, a daemon is created at system startup and runs until the system is shut down.
+􏰀- It runs in the background and has no controlling terminal. The lack of a control- ling terminal ensures that the kernel
+   never automatically generates any job-control or terminal-related signals (such as SIGINT, SIGTSTP, and SIGHUP) for a
+   daemon.
+
+Example:
+cron: a daemon that executes commands at a scheduled time.
+sshd: the secure shell daemon, which permits logins from remote hosts using a secure communications protocol.
+httpd: the HTTP server daemon (Apache), which serves web pages.
+inetd: the Internet superserver daemon which listens for incoming network connections on specified TCP/IP ports and
+       launches appropriate server programs to handle these connections.
+
+Creating a Daemon
+-------------------
+
+
