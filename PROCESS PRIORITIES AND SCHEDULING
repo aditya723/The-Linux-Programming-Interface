@@ -62,7 +62,7 @@ it reaches the end of its time slice;
 it voluntarily relinquishes the CPU, either by performing a blocking system call or by calling the sched_yield() system call.
 it terminates; or it is preempted by a higher-priority process.
 
-when the higher-priority process has ceased execution, the pre- empted process continues execution, consuming the remainder of
+when the higher-priority process has ceased execution, the preempted process continues execution, consuming the remainder of
 its time slice.i.e., the preempted process remains at the head of the queue for its priority level.
 
 The SCHED_FIFO Policy(first-in, first-out)
@@ -81,7 +81,79 @@ Realtime Process Scheduling API
 --------------------------------
 int sched_get_priority_min(int policy);
 int sched_get_priority_max(int policy);
-On Linux, these system calls return the numbers 1 and 99, respectively, for both the SCHED_RR and SCHED_FIFO policies. 
+On Linux, these system calls return the numbers 1 and 99, respectively, for both the SCHED_RR and SCHED_FIFO policies.
+
+Modifying and Retrieving Policies and Priorities
+-------------------------------------------------
+
+int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param);
+int sched_setparam(pid_t pid, const struct sched_param *param);
+int sched_getscheduler(pid_t pid);
+int sched_getparam(pid_t pid, struct sched_param *param);
+
+Policy                      Description     
+SCHED_FIFO       Realtime first-in first-out
+SCHED_RR         Realtime round-robin
+SCHED_OTHER      Standard round-robin time-sharing
+SCHED_BATCH      Similar to SCHED_OTHER, but intended for batch execution (since Linux 2.6.16)
+SCHED_IDLE       Similar to SCHED_OTHER, but with priority even lower than nice value +19 (since Linux 2.6.23)
+
+
+Preventing realtime processes from locking up the system
+----------------------------------------------------------
+
+
+Relinquishing the CPU
+----------------------
+int sched_yield(void);
+
+The SCHED_RR Time Slice
+------------------------
+The sched_rr_get_interval() system call enables us to find out the length of the time slice allocated to a
+SCHED_RR process each time it is granted use of the CPU.
+int sched_rr_get_interval(pid_t pid, struct timespec *tp);
+
+CPU Affinity
+--------------
+When a process is rescheduled to run on a multiprocessor system, it doesn’t necessarily run on the same
+CPU on which it last executed. The usual reason it may run on another CPU is that the original CPU is already busy.
+
+When a process changes CPUs, there is a performance impact: in order for a line of the process’s data to be loaded into the
+cache of the new CPU, it must first be invalidated (i.e., either discarded if it is unmodified, or flushed to main memory if
+it was modified), if present in the cache of the old CPU. (To prevent cache incon- sistencies, multiprocessor architectures
+allow data to be kept in only one CPU cache at a time.) This invalidation costs execution time. Because of this performance
+impact, the Linux (2.6) kernel tries to ensure soft CPU affinity for a process—wherever possible, the process is rescheduled
+to run on the same CPU.
+
+Sometimes, it is desirable to set hard CPU affinity for a process, so that it is explic- itly restricted to always
+running on one, or a subset, of the available CPUs. Among the reasons we may want to do this are the following:>
+􏰀 - We can avoid the performance impacts caused by invalidation of cached data.
+ - If multiple threads (or processes) are accessing the same data, then we may obtain performance benefits by confining them
+    all to the same CPU, so that they don’t contend for the data and thus cause cache misses.
+ - For a time-critical application, it may be desirable to confine most processes on the system to other CPUs, while reserving
+   one or more CPUs for the time-critical application.
+
+
+int sched_setaffinity(pid_t pid, size_t len, cpu_set_t *set);
+void CPU_ZERO(cpu_set_t *set); initializes set to be empty.
+void CPU_SET(int cpu, cpu_set_t *set); adds the CPU cpu to set.
+void CPU_CLR(int cpu, cpu_set_t *set); removes the CPU cpu from set.
+int CPU_ISSET(int cpu, cpu_set_t *set); returns true if the CPU cpu is a member of set.
+int sched_getaffinity(pid_t pid, size_t len, cpu_set_t *set);
+
+If the CPU affinity mask of the target process has not otherwise been modified, sched_getaffinity() returns a set containing
+all of the CPUs on the system.
+By dedicating one CPU to a particular thread (i.e., setting the affinity mask of that thread to specify a single CPU, and
+setting the affinity mask of all other threads to exclude that CPU), it is possible to ensure maximum execution speed for
+that thread. Restricting a thread to run on a single CPU also avoids the performance cost caused by the cache invalidation
+that occurs when a thread ceases to execute on one CPU and then recommences execution on a different CPU.
+
+
+
+
+
+
+
 
 
 
