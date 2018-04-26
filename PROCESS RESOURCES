@@ -1,0 +1,104 @@
+Process Resource Usage
+-----------------------
+
+int getrusage(int who, struct rusage *res_usage);
+
+The rusage structure returned by the getrusage() RUSAGE_CHILDREN operation includes the resource usage statistics of all of
+the descendants of the calling process. For example, if we have three processes related as parent, child, and grandchild,
+then, when the child does a wait() on the grandchild, the resource usage values of the grandchild are added to the child’s
+RUSAGE_CHILDREN values; when the parent per- forms a wait() for the child, the resource usage values of both the child and
+the grandchild are added to the parent’s RUSAGE_CHILDREN values. Conversely, if the child does not wait()
+on the grandchild, then the grandchild’s resource usages are not recorded in the RUSAGE_CHILDREN values of the parent.
+
+SUSv3 specifies that if SIGCHLD is being ignored (so that children are not turned into zombies that can be waited on), then
+the child statistics should not be added to the values returned by RUSAGE_CHILDREN. However, as noted in Section 26.3.3, in
+kernels before 2.6.9, Linux deviates from this requirement—if SIGCHLD is ignored, then the resource usage values for dead
+children are included in the values returned for RUSAGE_CHILDREN.
+
+Process Resource Limits
+-------------------------
+
+int getrlimit(int resource, struct rlimit *rlim);
+int setrlimit(int resource, const struct rlimit *rlim);
+
+
+The soft limit governs the amount of the resource that may be consumed by the process. A process can adjust the soft limit to
+any value from 0 up to the hard limit. For most resources, the sole purpose of the hard limit is to provide this ceiling for
+the soft limit.
+
+
+A privileged (CAP_SYS_RESOURCE) process can adjust the hard limit in either direction (as long as its value remains greater
+than the soft limit), but an unprivi- leged process can adjust the hard limit only to a lower value (irreversibly).
+
+Although a resource limit is a per-process attribute, in some cases, the limit is measured against not just that process’s
+consumption of the corresponding resource, but also against the sum of resources consumed by all processes with the same real
+user ID. The RLIMIT_NPROC limit, which places a limit on the number of processes that can be created, is a good example of the
+rationale for this approach.
+
+Details of Specific Resource Limits
+-------------------------------------
+
+RLIMIT_AS
+The RLIMIT_AS limit specifies the maximum size for the process’s virtual memory (address space), in bytes. Attempts (brk(),
+sbrk(), mmap(), mremap(), and shmat()) to exceed this limit fail with the error ENOMEM.
+
+RLIMIT_CORE
+The RLIMIT_CORE limit specifies the maximum size, in bytes, for core dump files pro- duced when a process is terminated
+by certain signals
+
+RLIMIT_CPU
+The RLIMIT_CPU limit specifies the maximum number of seconds of CPU time  that can be used by the process.
+
+SIGXCPU --- > soft limit is reached
+SIGKILL --- > hard CPU limit
+
+RLIMIT_DATA
+The RLIMIT_DATA limit specifies the maximum size, in bytes, of the process’s data segment.
+
+RLIMIT_FSIZE
+The RLIMIT_FSIZE limit specifies the maximum size of files that the process may create, in bytes.
+SIGXFSZ signal ---> soft limit
+
+RLIMIT_MEMLOCK
+The RLIMIT_MEMLOCK limit specifies the maximum number of bytes of virtual memory that a process may lock into physical memory,
+to prevent the memory from being swapped out.
+
+RLIMIT_MSGQUEUE
+specifies the maximum number of bytes that can be allocated for POSIX message queues for the real user ID of the calling
+process. The RLIMIT_MSGQUEUE limit affects only the calling process. Other processes belonging to this user are not affected
+unless they also set this limit or inherit it
+
+RLIMIT_NICE
+The RLIMIT_NICE limit (Linux-specific; since Linux 2.6.12) specifies a ceiling on the nice value that may be set for this
+process using sched_setscheduler() and nice(). The ceiling is calculated as 20 – rlim_cur, where rlim_cur is the current
+RLIMIT_NICE soft resource limit.
+
+RLIMIT_NOFILE
+The RLIMIT_NOFILE limit specifies a number one greater than the maximum file descriptor number that a process may allocate.
+
+RLIMIT_NPROC
+specifies the maximum number of processes that may be created for the real user ID of the calling process
+
+RLIMIT_RSS
+Specifies the maximum number of pages in the process’s resident set; that is, the total number of virtual memory pages
+currently in physical memory.
+
+RLIMIT_RTPRIO
+Specifies a ceiling on the realtime priority that may be set for this process using sched_setscheduler() and sched_setparam(). 
+
+RLIMIT_RTTIME
+specifies the maximum amount of CPU time in microseconds that a process running under a realtime scheduling policy may consume
+without sleeping.
+ SIGXCPU --- > soft limit is reached
+SIGKILL --- > hard CPU limit
+
+RLIMIT_SIGPENDING
+specifies the maximum number of signals that may be queued for the real user ID of the calling process.
+However, this limit is enforced only for sigqueue(). Even if the number of signals specified by this limit has already been
+queued to processes belonging to this real user ID, it is still possible to use kill() to queue one instance of each of the
+signals (including realtime signals) that are not already queued to a process.
+
+RLIMIT_STACK
+The RLIMIT_STACK limit specifies the maximum size of the process stack, in bytes. Attempts to grow the stack beyond this
+limit result in the generation of a SIGSEGV signal for the process. Since the stack is exhausted, the only way to catch this
+signal is by establishing an alternate signal stack.
