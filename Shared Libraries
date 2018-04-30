@@ -1,0 +1,3 @@
+Shared libraries are a technique for placing library functions into a single unit that can be shared by multiple processes at run
+time. This technique can save both disk space and RAM.
+
