@@ -1,1 +1,47 @@
 
+Memory-mapping is a mechanism that maps a portion of a file, or an entire file, on disk to a range of addresses within an
+application's address space. The application can then access files on disk in the same way it accesses dynamic memory. This makes
+file reads and writes faster in comparison with using functions such as fread and fwrite.
+
+A mapping can be of two types:
+File mapping: A file mapping maps a region of a file directly into the calling process’s virtual memory.
+              This type of mapping is also known as a file-based mapping or memory-mapped file.
+Anonymous mapping:An anonymous mapping doesn’t have a corresponding file. Instead, the pages of the mapping are initialized to 0.
+
+The memory in one process’s mapping may be shared with mappings in other processes (i.e., the page-table entries of each process
+point to the same pages of RAM).
+a. Private mapping (MAP_PRIVATE) ----> copy on write
+b. Shared mapping (MAP_SHARED)
+
+The four different types of memory mappings are created and used as follows:
+a. Private file mapping
+b. Private anonymous mapping
+c. Shared file mapping
+d. Shared anonymous mapping
+
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+
+msync()
+
+Memory protection
+PROT_NONE, PROT_READ, PROT_WRITE, PROT_EXEC
+
+One use of pages of memory marked PROT_NONE is as guard pages at the start or end of a region of memory that a process has
+allocated.
+Memory protections reside in process-private virtual memory tables. Thus, different processes may map the same memory region
+with different protections.
+mprotect()
+
+Unmapping a Mapped Region: munmap()
+int munmap(void *addr, size_t length);
+
+If there are no mappings in the address range specified by addr and length, then munmap() has no effect, and returns 0 (for
+success). During unmapping, the kernel removes any memory locks that the process holds for the specified address range.
+
+To create a file mapping, we perform the following steps:
+1. Obtain a descriptor for the file, typically via a call to open().
+2. Pass that file descriptor as the fd argument in a call to mmap().
+3. can close fd.
+
+
+
