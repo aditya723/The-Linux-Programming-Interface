@@ -1,1 +1,115 @@
+Allocating Memory on the Heap
+===============================
+
+A process can allocate memory by increasing the size of the heap, a variablesize segment of contiguous virtual memory that begins j
+ust after the uninitialized data segment of a process and grows and shrinks as memory is allocated and freed.
+
+Adjusting the Program Break: brk() and sbrk()
+-----------------------------------------------
+Initially, the program break lies just past the end of the uninitialized data segment. The kernel automatically allocates new 
+physical pages on the first attempt by the process to access addresses in those pages.
+
+int brk(void *end_data_segment);
+void *sbrk(intptr_t increment);
+
+The brk() system call sets the program break to the location specified by end_data_segment. Since virtual memory is allocated in
+units of pages, end_data_segment is effectively rounded up to the next page boundary.
+
+The precise upper limit on where the program break can be set depends on a range of factors, including: the process resource limit
+for the size of the data segment and the location of memory mappings, shared memory segments, and shared libraries.
+
+A call to sbrk() adjusts the program break by adding increment to it. The call sbrk(0) returns the current setting of the program
+break without changing it. This can be useful if we want to track the size of the heap, perhaps in order to monitor the behavior
+of a memory allocation package.
+
+Allocating Memory on the Heap: malloc() and free()
+----------------------------------------------------
+
+void *malloc(size_t size);
+The block of memory returned by malloc() is always aligned on a byte boundary suitable for any type of C data structure.
+
+void free(void *ptr);
+In general, free() doesn’t lower the program break, but instead adds the block of memory to a list of free blocks that are
+recycled by future calls to malloc(). This is done for several reasons:
+􀁺 The block of memory being freed is typically somewhere in the middle of the heap, rather than at the end, so that lowering
+    the program break is not possible.
+􀁺 It minimizes the number of sbrk() calls that the program must perform. (System calls have a small but significant overhead.)
+􀁺 In many cases, lowering the break would not help programs that allocate large amounts of memory, since they typically tend
+    to hold on to allocated memory or repeatedly release and reallocate memory, rather than release it all and then continue to
+    run for an extended period of time.
+    
+The glibc free() function calls sbrk() to lower the program break only when the free block at the top end is “sufficiently”
+large, where “sufficient” is determined by parameters controlling the operation of the malloc package (128 kB is a typical
+value). This reduces the number of sbrk() calls (i.e., the number of brk() system calls) that must be made.
+
+
+On termination OS automatically frees memory allocated by process, we can rely on this behaviour of OS, since adding multiple
+calls to free() could be expensive in terms of CPU time, as well as perhaps being complicated to code.However, it comes at a cose 
+of code readlibilty also malloc debugging library can cry.
+
+Implementation of malloc() and free()
+--------------------------------------
+
+malloc() scans the list of memory blocks previously released by free() in order to find one whose size is larger than
+or equal to its requirements.If the block is exactly the right size, then it is returned to the caller. If it is larger,
+then it is split, so that a block of the correct size is returned to the caller and a smaller free block is left on the free
+list. If no block on the free list is large enough, then malloc() calls sbrk() to allocate more memory. To reduce the number
+of calls to sbrk(), rather than allocating exactly the number of bytes required, malloc() increases the program break in
+larger units (some multiple of the virtual memory page size), putting the excess memory onto the free list.
+
+When free() places a block of memory onto the free list, how does it know what size that block is?
+When malloc() allocates the block, it allocates a bytes to hold an integer containing the size of the block. This integer is
+located at the beginning of the block; the address actually returned to the caller points to the location just past this
+length value.
+
+ ----------------------------------------------------
+ | Length of block (L)| Memory for use by caller    |
+ ----------------------------------------------------
+                       ^
+                       | Address returned it caller
+                     Memory block returned by malloc()
+When a block is placed on the (doubly linked) free list, free() uses the bytes of the block itself in order to add the block
+to the list.
+----------------------------------------------------------------------------------------------------------------------------
+| Length of block (L)| Pointer to previous free block (P) | Pointer to next free block (N) | Remaining bytes of free block |
+----------------------------------------------------------------------------------------------------------------------------
+      A block on the free list
+ 
+ mtrace(),  muntrace(), mcheck(), mprobe(), malloopt(), mallinfo().
+ void *calloc(size_t numitems, size_t size);
+ void *realloc(void *ptr, size_t size);
+ 
+ On success, realloc() returns a pointer to the location of the resized block. This may be different from its location before
+ the call. The call realloc(ptr, 0) is equivalent to calling free(ptr) followed by malloc(0). If ptr is specified as NULL,
+ then realloc() is equivalent to calling malloc(size).
+
+For the usual case, where we are increasing the size of the block of memory, realloc() attempts to coalesce the block with an
+immediately following block of memory on the free list, if one exists and is large enough. If the block lies at the end of the
+heap, then realloc() expands the heap. If the block of memory lies in the middle of the heap, and there is insufficient free
+space immediately following it, realloc() allocates a new block of memory and copies all existing data from the old block to
+the new block. This last case is common and CPU-intensive. In general, it is advisable to minimize the use of realloc().
+
+Allocating aligned memory: memalign() and posix_memalign()
+TODO
+
+Allocating Memory on the Stack: alloca()
+-----------------------------------------
+alloca() allocates memory dynamically.However, instead of obtaining memory from the heap, alloca() obtains memory
+from the stack by increasing the size of the stack frame
+void *alloca(size_t size);
+
+If the stack overflows as a consequence of calling alloca(), then program behavior is unpredictable. In particular, we don’t
+get a NULL return to inform us of the error. 
+
+Note that we can’t use alloca() within a function argument list, as in this example:
+func(x, alloca(size), z); /* WRONG! */
+This is because the stack space allocated by alloca() would appear in the middle of the space for the function arguments
+(which are placed at fixed locations within the stack frame).
+ 
+Allocating blocks of memory is faster with alloca() than with malloc(), because alloca() is implemented by the compiler as
+inline code that directly adjusts the stack pointer. Furthermore, alloca() doesn’t need to maintain a list of free blocks.
+Memory allocated using alloca() is automatically returns when function returns.
+
+Using alloca() can be especially useful if we employ longjmp() or siglongjmp() to perform a nonlocal goto from a signal handler.
+
 
