@@ -1,0 +1,111 @@
+various system calls that perform operations on a process’s virtual address space.
+
+Change protection on virtual memory
+--------------------------------------
+int mprotect(void *addr, size_t length, int prot);
+The mprotect() system call changes the protection on the virtual memory pages in the range starting at addr and continuing for
+length bytes.
+
+Because protections are set on whole pages, length is, in effect, rounded up to the next multiple of the system page size.
+
+Memory locking
+----------------
+Reason for locking pages:
+1. To guarantee it should be always in physical memory so that page fault can be avoided.
+2. Another reason for locking memory is security. If a virtual memory page containing sensitive data is never swapped out, then
+   no copy of the page is ever written to the disk. If the page was written to the disk, it could, in theory, be read directly
+   from the disk device at some later time. (An attacker could deliberately engineer this situation by running a program that
+   consumes a large amount of memory, thus forcing the memory of other processes to be swapped out to disk.) Reading information
+   from the swap space could even be done after the process has terminated, since the kernel makes no guarantees about zeroing
+   out the data held in swap space. (Normally, only privileged processes would be able to read from the swap device.) The suspend
+   mode on laptop computers, as well some desktop systems, saves a copy of a system’s RAM to disk, regardless of memory locks.
+
+Since virtual memory is managed in units of pages, memory locks apply to complete pages. When performing limit checks, the
+RLIMIT_MEMLOCK limit is rounded down to the nearest multiple of the system page size.
+
+For mlock(), mlockall(), and the mmap() MAP_LOCKED operation, RLIMIT_MEMLOCK defines a per-process limit on the number of bytes
+of its virtual address space that a process may lock.
+
+For the shmctl() SHM_LOCK operation, RLIMIT_MEMLOCK defines a per-user limit on the number of bytes in shared memory segments that
+may be locked by the real user ID of this process. When a process performs a shmctl() SHM_LOCK operation, the kernel checks the
+total number of bytes of System V shared memory that are already recorded as being locked by the real user ID of the calling
+process. If the size of the to-be-locked segment would not push that total over the process’s RLIMIT_MEMLOCK limit, the operation
+succeeds.
+
+The reason RLIMIT_MEMLOCK has different semantics for System V shared memory is that a shared memory segment can continue to exist
+even when it is not attached by any process. (It is removed only after an explicit shmctl() IPC_RMID operation, and then only after
+all processes have detached it from their address space.)
+
+int mlock(void *addr, size_t length);
+int munlock(void *addr, size_t length);
+
+We can find out how much memory a process currently has locked by inspecting the VmLck entry of the Linux-specific
+/proc/PID/status file.
+
+Aside from the explicit use of munlock(), memory locks are automatically removed in the following circumstances:
+􀁺 on process termination;
+􀁺 if the locked pages are unmapped via munmap(); or
+􀁺 if the locked pages are overlaid using the mmap() MAP_FIXED flag.
+
+Where multiple processes share a set of pages (e.g., a MAP_SHARED mapping), these pages remain locked in memory as long as at
+least one of the processes holds a memory lock on the pages.
+
+Memory locks don’t nest for a single process. If a process repeatedly calls mlock() on a certain virtual address range, only
+one lock is established, and this lock will be removed by a single call to munlock(). On the other hand, if we use mmap() to
+map the same set of pages (i.e., the same file) at several different locations within a single process, and then lock each of
+these mappings, the pages remain locked in RAM until all of the mappings have been unlocked.
+
+The fact that memory locks are performed in units of pages and can’t be nested means that it isn’t logically correct to
+independently apply mlock() and munlock() calls to different data structures on the same virtual page. For example,
+suppose we have two data structures within the same virtual memory page pointed to by pointers p1 and p2, and we make the 
+following calls:
+mlock(*p1, len1);
+mlock(*p2, len2); /* Actually has no effect */
+munlock(*p1, len1);
+
+All of the above calls will succeed, but at the end of this sequence, the entire page is unlocked; that is, the data structure
+pointed to by p2 is not locked into memory.
+
+shmctl() SHM_LOCK operation VS mlock() and mlockall().
+1. After a SHM_LOCK operation, pages are locked into memory only as they are faulted in by subsequent references. By contrast,
+ mlock() and mlockall() fault all of the locked pages into memory before the call returns.
+2. The SHM_LOCK operation sets a property of the shared memory segment, rather than the process. (For this reason, the value
+ in the /proc/PID/status VmLck field doesn’t include the size of any attached System V shared memory segments that have been
+ locked using SHM_LOCK.) This means that, once faulted into memory, the pages remain resident even if all processes detach the
+ shared memory segment. By contrast, a region locked into memory using mlock() (or mlockall()) remains locked only as long as
+ at least one process holds a lock on the region.
+
+Locking and unlocking all of a process’s memory
+-------------------------------------------------
+int mlockall(int flags);
+int munlockall(void);
+
+flags(oring allowed)
+
+MCL_CURRENT -> Lock all pages that are currently mapped into the calling process’s virtual address space.
+MCL_FUTURE -> Lock all pages subsequently mapped into the calling process’s virtual address space. Such pages may, for example,
+              be part of a shared memory region mapped via mmap() or shmat(), or part of the upwardly growing heap or downwardly
+              growing stack. As a consequence of specifying the MCL_FUTURE flag, a later memory allocation operation (e.g.,
+              mmap(), sbrk(), or malloc()) may fail, or stack growth may yield a SIGSEGV signal, if the system runs out of RAM
+              to allocate to the process or the RLIMIT_MEMLOCK soft resource limit is encountered.
+
+The munlockall() system call unlocks all of the pages of the calling process and undoes the effect of any previous mlockall
+(MCL_FUTURE) call. As with munlock(), unlocked pages are not guaranteed to be removed from RAM by this call.
+
+Determining Memory Residence: mincore()
+----------------------------------------
+int mincore(void *addr, size_t length, unsigned char *vec);
+The information returned by mincore() can change between the time the call is made and the time the elements of vec are checked.
+The only pages guaranteed to remain memory-resident are those locked with mlock() or mlockall().
+
+Advising Future Memory Usage Patterns: madvise()
+---------------------------------------------------
+The madvise() system call is used is to improve the performance of an application by informing the kernel about the calling
+process’s likely usage of the pages in the range starting at addr and continuing for length bytes.
+int madvise(void *addr, size_t length, int advice);
+The advice argument is one of the following:
+MADV_NORMAL, MADV_RANDOM, MADV_SEQUENTIAL, MADV_WILLNEED, MADV_DONTNEED, 
+
+
+
+
