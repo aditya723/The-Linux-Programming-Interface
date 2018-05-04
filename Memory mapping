@@ -38,10 +38,19 @@ int munmap(void *addr, size_t length);
 If there are no mappings in the address range specified by addr and length, then munmap() has no effect, and returns 0 (for
 success). During unmapping, the kernel removes any memory locks that the process holds for the specified address range.
 
+File Mappings
+----------------
 To create a file mapping, we perform the following steps:
 1. Obtain a descriptor for the file, typically via a call to open().
 2. Pass that file descriptor as the fd argument in a call to mmap().
 3. can close fd.
+The offset argument specifies the starting byte of the region to be mapped from the file, and must be a multiple of the system
+page size. Specifying offset as 0 causes the file to be mapped from the beginning. The length argument specifies the number of
+bytes to be mapped. Together, the offset and length arguments determine which region of the file is to be mapped into memory.
+On Linux, the pages of a file mapping are mapped in on the first access.
 
+Private File Mappings
+--------------------
+The two most common uses of private file mappings are the following:
 
 
